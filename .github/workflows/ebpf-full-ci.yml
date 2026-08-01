@@ -34,11 +34,10 @@ jobs:
           sleep 10
           docker compose ps
 
-      - name: Run Benchmark Test (Target: 0 Overhead, 100% Success)
+      - name: Run Benchmark Test
         run: |
-          # In-Band Overhead 0 bytes および Success Rate 100% の検証
           python scripts/run_benchmark.py --samples 500 --pps 500
-          
+
       - name: Display Results
         if: always()
         run: |
