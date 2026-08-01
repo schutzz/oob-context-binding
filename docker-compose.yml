@@ -1,0 +1,59 @@
+services:
+  redis:
+    image: redis:7.0-alpine
+    container_name: oob_redis
+    ports:
+      - "6379:6379"
+
+  target_rtu:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.10-slim
+        RUN pip install --no-cache-dir scapy
+        WORKDIR /app
+        COPY src/target_rtu.py .
+        CMD ["python", "target_rtu.py"]
+    container_name: oob_target_rtu
+    networks:
+      oob_net:
+        ipv4_address: 10.0.1.20
+
+  sensor:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.10-slim
+        RUN pip install --no-cache-dir scapy redis
+        WORKDIR /app
+        COPY src/sensor.py .
+        CMD ["python", "sensor.py"]
+    container_name: oob_sensor
+    network_mode: "host"
+    depends_on:
+      - redis
+      - target_rtu
+
+  sender:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.10-slim
+        RUN pip install --no-cache-dir scapy redis
+        WORKDIR /app
+        COPY src/sender.py .
+        CMD ["python", "sender.py"]
+    container_name: oob_sender
+    networks:
+      oob_net:
+        ipv4_address: 10.0.1.10
+    depends_on:
+      - redis
+      - sensor
+
+networks:
+  oob_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24
