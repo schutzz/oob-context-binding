@@ -1,6 +1,7 @@
 # Deterministic Out-of-Band (OOB) Context Binding
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI Status](https://github.com/schutzz/oob-context-binding/actions/workflows/ebpf-full-ci.yml/badge.svg)](https://github.com/schutzz/oob-context-binding/actions/workflows/ebpf-full-ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-green.svg)](https://www.docker.com/)
 [![Vector](https://img.shields.io/badge/Vector-0.34-blueviolet.svg)](https://vector.dev/)
@@ -76,6 +77,8 @@ oob-context-binding/
 
 ### Prerequisites
 * Docker & Docker Compose V2
+* **(For eBPF Vanguard Mode)**: A native Linux host (Ubuntu 22.04+ recommended) with `/sys/kernel/btf/vmlinux` exposed to the Docker container. 
+  * *Note: Running the full eBPF pipeline on Docker Desktop for Windows/macOS is not supported due to virtualized kernel constraints. For non-Linux machines, use the GitHub Actions CI environment or an Ubuntu VM.*
 
 ### Running the Demo
 
