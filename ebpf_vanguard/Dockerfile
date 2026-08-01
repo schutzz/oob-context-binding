@@ -28,5 +28,6 @@ RUN bpftool gen skeleton xdp_prog.bpf.o > xdp_prog.skel.h
 RUN clang -O2 -o loader loader.c -lbpf -lelf -lz -lzstd
 
 FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y --no-install-recommends libbpf0 libelf1 zlib1g libzstd1 && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/loader /loader
 ENTRYPOINT ["/loader"]

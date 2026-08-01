@@ -51,9 +51,24 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to increase RLIMIT_MEMLOCK\n");
     }
 
-    skel = xdp_prog_bpf__open_and_load();
+    DECLARE_LIBBPF_OPTS(bpf_object_open_opts, open_opts);
+    char *custom_btf = getenv("CUSTOM_BTF_PATH");
+    if (custom_btf && access(custom_btf, R_OK) == 0) {
+        open_opts.btf_custom_path = custom_btf;
+        printf("[eBPF Vanguard] Using custom BTF file: %s\n", custom_btf);
+    } else {
+        printf("[eBPF Vanguard] Using system default BTF from /sys/kernel/btf/vmlinux\n");
+    }
+
+    skel = xdp_prog_bpf__open_opts(&open_opts);
     if (!skel) {
-        fprintf(stderr, "Failed to open and load BPF skeleton\n");
+        fprintf(stderr, "Failed to open BPF skeleton\n");
+        return 1;
+    }
+
+    err = xdp_prog_bpf__load(skel);
+    if (err) {
+        fprintf(stderr, "Failed to load BPF skeleton\n");
         return 1;
     }
 

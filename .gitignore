@@ -6,3 +6,4 @@ __pycache__/
 .idea/
 .vscode/
 BENCHMARK_GUIDE.md
+ebpf_vanguard/custom_btf/

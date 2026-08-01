@@ -55,7 +55,10 @@ services:
       - seccomp=unconfined
       - no-new-privileges:true
     network_mode: "host"
+    environment:
+      - CUSTOM_BTF_PATH=/app/custom_btf/vmlinux
     volumes:
+      - ./ebpf_vanguard/custom_btf:/app/custom_btf:ro
       - /sys/fs/bpf:/sys/fs/bpf
       - /sys/kernel/debug:/sys/kernel/debug
       - /sys/kernel/btf:/sys/kernel/btf:ro

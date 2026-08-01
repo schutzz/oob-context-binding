@@ -15,7 +15,7 @@ This mechanism solves the fundamental visibility gap in Industrial Control Syste
 
 ---
 
-## 🎯 The Problem: Why Legacy OT Protocols Lack Distributed Tracing
+## The Problem: Why Legacy OT Protocols Lack Distributed Tracing
 
 In modern IT environments, W3C Trace Context headers (such as `traceparent`) are injected directly into HTTP/gRPC headers to trace requests across microservices.
 
@@ -26,7 +26,7 @@ However, in Industrial Control Systems (ICS / SCADA):
 
 ---
 
-## 💡 The Solution: Deterministic OOB Context Binding
+## The Solution: Deterministic OOB Context Binding
 
 Instead of mutating the binary protocol, **Deterministic OOB Context Binding** decouples context propagation into an Out-of-Band (OOB) control plane using a deterministic hash key lookup:
 
@@ -52,7 +52,7 @@ Instead of mutating the binary protocol, **Deterministic OOB Context Binding** d
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 oob-context-binding/
@@ -73,12 +73,12 @@ oob-context-binding/
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
 ### Prerequisites
 * Docker & Docker Compose V2
-* **(For eBPF Vanguard Mode)**: A native Linux host (Ubuntu 22.04+ recommended) with `/sys/kernel/btf/vmlinux` exposed to the Docker container. 
-  * *Note: Running the full eBPF pipeline on Docker Desktop for Windows/macOS is not supported due to virtualized kernel constraints. For non-Linux machines, use the GitHub Actions CI environment or an Ubuntu VM.*
+* **(For eBPF Vanguard Mode)**: A native Linux host or Windows WSL2 with `/sys/kernel/btf/vmlinux`. 
+  * *Note: Running the full eBPF pipeline on Docker Desktop for Windows is now fully supported! By extracting the native BTF file from your WSL2 kernel and mounting it to the container, our custom CO-RE loader bypasses virtualized kernel constraints via the `CUSTOM_BTF_PATH` environment variable.*
 
 ### Running the Demo
 
@@ -100,20 +100,20 @@ oob-context-binding/
 
 ---
 
-## 📊 Quantitative Benchmarks
+## Quantitative Benchmarks
 
 See [docs/evaluation.md](docs/evaluation.md) for full benchmarking details.
 
 | Metric | Measured Value | Standard Target | Status |
 | :--- | :--- | :--- | :--- |
-| **In-Band Overhead** | **0.0%** (0 bytes added) | 0 bytes | ✅ PERFECT |
-| **Trace Stitching Rate** | **100.0%** (up to 5,000 pps) | >99.9% | ✅ PASS |
-| **Pipeline Latency** | **~0.41 ms** | <1.0 ms | ✅ PASS |
-| **OOM Resilience** | **Stateless / No Memory Leak** | Zero OOM | ✅ PASS |
+| **In-Band Overhead** | **0.0%** (0 bytes added) | 0 bytes | PERFECT |
+| **Trace Stitching Rate** | **100.0%** (up to 5,000 pps) | >99.9% | PASS |
+| **Pipeline Latency** | **~0.41 ms** | <1.0 ms | PASS |
+| **OOM Resilience** | **Stateless / No Memory Leak** | Zero OOM | PASS |
 
 ---
 
-## 🤖 Automated CI/CD (GitHub Actions)
+## Automated CI/CD (GitHub Actions)
 
 This repository includes a fully automated CI/CD pipeline using **GitHub Actions** (`.github/workflows/ebpf-full-ci.yml`) to guarantee the reproducibility of the research results.
 
@@ -127,7 +127,7 @@ Anyone can easily reproduce the eBPF Vanguard Mode benchmarks without preparing 
 
 ---
 
-## 📜 Research & Citation
+## Research & Citation
 
 If you use this project or architecture in your academic work, please cite our whitepaper/dataset:
 
@@ -142,6 +142,6 @@ If you use this project or architecture in your academic work, please cite our w
 }
 ```
 
-## 📜 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
