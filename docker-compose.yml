@@ -45,7 +45,15 @@ services:
     build:
       context: ./ebpf_vanguard
     container_name: oob_ebpf_vanguard
-    privileged: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - BPF
+      - PERFMON
+      - NET_ADMIN
+    security_opt:
+      - seccomp=unconfined
+      - no-new-privileges:true
     network_mode: "host"
     volumes:
       - /sys/fs/bpf:/sys/fs/bpf
