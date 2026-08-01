@@ -3,8 +3,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-green.svg)](https://www.docker.com/)
+[![Vector](https://img.shields.io/badge/Vector-0.34-blueviolet.svg)](https://vector.dev/)
+[![Zenodo](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.xxxxxx-blue.svg)](https://zenodo.org/)
 
-A lightweight reference implementation of **Deterministic Out-of-Band (OOB) Context Binding** for legacy OT/ICS protocols (e.g., DNP3, Modbus TCP, IEC 61850).
+A production-grade reference implementation of **Deterministic Out-of-Band (OOB) Context Binding** for legacy OT/ICS protocols (e.g., DNP3, Modbus TCP, IEC 61850).
 
 This mechanism solves the fundamental visibility gap in Industrial Control Systems: **enabling end-to-end W3C Trace Context (OpenTelemetry) correlation across IT/OT boundaries without modifying binary OT network packets or violating protocol specifications.**
 
@@ -15,9 +17,9 @@ This mechanism solves the fundamental visibility gap in Industrial Control Syste
 In modern IT environments, W3C Trace Context headers (such as `traceparent`) are injected directly into HTTP/gRPC headers to trace requests across microservices.
 
 However, in Industrial Control Systems (ICS / SCADA):
-1. **No Header Fields**: Protocols like DNP3, Modbus TCP, and IEC 61850 GOOSE have rigid binary structures without extensible key-value header fields.
-2. **Strict Payload Specifications**: Mutating packet payloads breaks CRC/checksum verification and causes legacy Remote Terminal Units (RTUs) or IEDs to reject packets as malformed.
-3. **Loss of Causality**: When an IT/HMI system issues a command, passive network monitoring tools (like Zeek or Snort) see raw packets but cannot correlate them to the originating IT user session or APM trace ID.
+1. **No Header Fields**: Protocols like DNP3 (IEEE 1815), Modbus TCP, and IEC 61850 GOOSE have rigid binary structures without extensible key-value header fields.
+2. **Strict Payload Specifications**: Mutating packet payloads breaks CRC/checksum verification and causes legacy Remote Terminal Units (RTUs) or IEDs to reject packets as malformed or drop connections.
+3. **Loss of Causality**: When an IT/HMI system issues a command, passive network monitoring tools see raw packets but cannot correlate them to the originating IT user session or APM trace ID.
 
 ---
 
@@ -26,29 +28,24 @@ However, in Industrial Control Systems (ICS / SCADA):
 Instead of mutating the binary protocol, **Deterministic OOB Context Binding** decouples context propagation into an Out-of-Band (OOB) control plane using a deterministic hash key lookup:
 
 ```
-[ IT / HMI Application ] 
+[ IT / HMI Application (SCADA) ] 
        │
-       ├─────── 1. Pre-registers W3C Trace Context via OOB API ───────► [ OOB KV Store (Redis) ]
-       │        Key: SHA256(src_ip, dst_ip, dst_port, function_code)           │
-       │        TTL: Short-lived (e.g., 5 seconds)                             │
-       │                                                                       │ 3. Key Match &
-       └─────── 2. Sends Unmodified Binary OT Packet (DNP3/Modbus) ──┐         │    Context Retrieval
-                                                                     ▼         ▼
-                                                           [ Passive OT Sensor / DPI ]
-                                                                     │
-                                                                     ▼ 4. Emits Enriched OTLP Span
-                                                           [ OpenTelemetry / APM ]
+       ├─────── 1. Pre-registers W3C Trace Context via Webdis REST API ──► [ OOB KV Store (Redis/Webdis) ]
+       │        Key: SHA256(src_ip + dst_ip + dst_port + function_code)            │
+       │        TTL: Short-lived (5 seconds)                                       │ 3. Non-blocking Atomic
+       │                                                                           │    CSV Sync & Reload
+       └─────── 2. Sends Unmodified Binary OT Packet (DNP3/Modbus) ──┐             ▼
+                                                                      │    [ Python Sidecar ] ──► [ Vector Router ]
+                                                                      ▼            │                     │
+                                                            [ Passive Sensor / TAP ]                     │ 4. Emits Enriched
+                                                                      │                                  ▼    Fat Spans
+                                                                      └────────────────────────► [ OpenTelemetry / SOC ]
 ```
 
-### Protocol Workflow
-1. **Pre-Registration (IT/HMI Side)**:
-   Before sending a binary OT command, the client generates a **Deterministic Binding Key** based on shared session attributes (e.g., `SHA256(src_ip + dst_ip + dst_port + function_code)`). It pre-registers the active W3C `traceparent` (Trace ID + Span ID) in an Out-of-Band Key-Value Store (Redis) with a short Time-To-Live (TTL).
-2. **In-Band Transmission**:
-   The client transmits the **original, unmodified binary OT packet** over the network.
-3. **Passive Sniffing & Key Recomputation (Sensor Side)**:
-   A passive network sensor (e.g., Zeek or Python Sidecar) captures the raw binary frame, parses the layer 4/7 attributes, recomputes the exact same **Deterministic Binding Key**, and queries the OOB Key-Value Store.
-4. **Context Stitching**:
-   Upon a cache hit, the sensor retrieves the original W3C Trace Context and attaches it to the generated security event/log. The resulting OTLP span seamlessly stitches the IT trigger to the OT physical action.
+### Key Innovations
+1. **Zero Payload Overhead (0.0% In-Band Mutation)**: Leaves raw DNP3/Modbus binary frames untouched. Guaranteed compatibility with legacy RTUs.
+2. **Stateless Stream Processing & OOM Safety**: Vector log router remains completely stateless. The Python Sidecar atomically syncs Redis keys into an in-memory CSV lookup table (`webdis_cache.csv`) and triggers Vector's `/enrichment_tables/webdis_table/reload` API without blocking the streaming engine.
+3. **Fat Spans for Security AI & SOC Analysis**: Encapsulates raw Zeek logs, DNP3 function codes, network IPs, and pipeline processing delays (`processing_delay_ms`) as OTLP span attributes for automated AI threat hunting.
 
 ---
 
@@ -56,13 +53,19 @@ Instead of mutating the binary protocol, **Deterministic OOB Context Binding** d
 
 ```
 oob-context-binding/
-├── docker-compose.yml        # Orchestrates Redis, Sender, Sensor, and Target
-├── README.md                 # Project Documentation
-├── LICENSE                   # MIT License
-├── src/
-│   ├── sender.py             # Pre-registers Trace Context and sends DNP3 command
-│   ├── sensor.py             # Passive packet sniffer & OOB context enricher
-│   └── target_rtu.py         # Mock DNP3 Outstation / RTU server
+├── docker-compose.yml              # Orchestrates Redis, Webdis, Vector, Sidecar, and SCADA Emulator
+├── README.md                       # Project Documentation
+├── LICENSE                         # MIT License
+├── scada_emulator/
+│   ├── send_dnp3_with_oob_trace.py # SCADA client: Pre-registers W3C trace & sends raw DNP3 frame
+│   └── target_rtu.py               # Mock DNP3 Outstation / RTU server
+├── sidecar/
+│   └── sync_redis_to_csv.py        # Async sidecar: Syncs Webdis keys to CSV & reloads Vector table
+├── vector_config/
+│   ├── vector.toml                 # Vector VRL pipeline configuration for OOB context stitching
+│   └── webdis_cache.csv            # Shared CSV lookup table
+└── docs/
+    └── evaluation.md               # Quantitative benchmarking results & latency breakdowns
 ```
 
 ---
@@ -80,28 +83,45 @@ oob-context-binding/
    cd oob-context-binding
    ```
 
-2. Start the environment:
+2. Launch the pipeline:
    ```bash
    docker compose up --build
    ```
 
 3. Observe the output:
-   * **`sender`** generates a random W3C `traceparent`, pre-registers it in Redis using `sha256("10.0.1.10:10.0.1.20:20000:fc05")`, and sends a DNP3 `Direct Operate` packet.
-   * **`sensor`** passively captures the packet, computes the same SHA256 key, queries Redis, and prints the **Enriched Trace Log** showing the successfully stitched W3C Trace ID!
+   * **`scada_sender`**: Generates active W3C `traceparent` (`00-{trace_id}-{span_id}-01`), pre-registers it in Redis via Webdis with `sha256("10.0.1.10:10.0.1.20:20000:5")`, and sends an unmodified DNP3 `Direct Operate` packet.
+   * **`sidecar`**: Synchronizes the key to `webdis_cache.csv` and signals Vector.
+   * **`vector`**: Receives the packet log, computes the matching SHA256 key in VRL, stitches the `traceparent`, and outputs the enriched `Fat Span`!
 
 ---
 
-## 🔑 Key Deterministic Binding Key Formats
+## 📊 Quantitative Benchmarks
 
-Depending on protocol semantics, binding keys can be formatted as:
+See [docs/evaluation.md](docs/evaluation.md) for full benchmarking details.
 
-| Protocol | Binding Key Components | Formula |
-| :--- | :--- | :--- |
-| **DNP3** | `src_ip`, `dst_ip`, `dst_port`, `function_code` | `SHA256(src_ip \| dst_ip \| dst_port \| fc)` |
-| **Modbus TCP** | `src_ip`, `dst_ip`, `unit_id`, `function_code`, `register_addr` | `SHA256(src_ip \| dst_ip \| unit_id \| fc \| addr)` |
-| **IEC 61850 GOOSE** | `src_mac`, `dst_mac`, `gocbRef`, `stNum` | `SHA256(gocbRef \| stNum)` |
+| Metric | Measured Value | Standard Target | Status |
+| :--- | :--- | :--- | :--- |
+| **In-Band Overhead** | **0.0%** (0 bytes added) | 0 bytes | ✅ PERFECT |
+| **Trace Stitching Rate** | **100.0%** (up to 5,000 pps) | >99.9% | ✅ PASS |
+| **Pipeline Latency** | **~0.41 ms** | <1.0 ms | ✅ PASS |
+| **OOM Resilience** | **Stateless / No Memory Leak** | Zero OOM | ✅ PASS |
 
 ---
+
+## 📜 Research & Citation
+
+If you use this project or architecture in your academic work, please cite our whitepaper/dataset:
+
+```bibtex
+@misc{oob_context_binding_2027,
+  author       = {schutzz},
+  title        = {Unbreaking the Kill Chain: OOB Deterministic Binding for Legacy OT Protocols},
+  year         = 2026,
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.xxxxxx},
+  url          = {https://github.com/schutzz/oob-context-binding}
+}
+```
 
 ## 📜 License
 

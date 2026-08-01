@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.0-alpine
+    container_name: oob_redis
+    ports:
+      - "6379:6379"
+
+  webdis:
+    image: nicolasff/webdis:latest
+    container_name: oob_webdis
+    ports:
+      - "7379:7379"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  ebpf_vanguard:
+    build:
+      context: ./ebpf_vanguard
+    container_name: oob_ebpf_vanguard
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys/kernel/debug:/sys/kernel/debug
+    command: ["eth0"]
+
+  scada_sender:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.10-slim
+        RUN pip install --no-cache-dir requests redis
+        WORKDIR /app
+        COPY scada_emulator/send_dnp3_with_oob_trace.py .
+        CMD ["python", "send_dnp3_with_oob_trace.py"]
+    container_name: oob_scada_sender
+    environment:
+      - WEBDIS_HOST=webdis
+      - WEBDIS_PORT=7379
+      - SRC_IP=127.0.0.1
+      - DST_IP=127.0.0.1
+      - DST_PORT=20000
+      - FUNCTION_CODE=5
+    network_mode: "host"
+    depends_on:
+      - webdis

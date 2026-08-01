@@ -1,0 +1,72 @@
+# Vector configuration for OOB Context Binding Pipeline
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+# 1. Enrichment Table pointing to atomically synced CSV
+[enrichment_tables.webdis_table]
+type = "file"
+file.path = "/data/webdis_cache.csv"
+file.encoding.type = "csv"
+
+[enrichment_tables.webdis_table.schema]
+binding_key = "string"
+traceparent = "string"
+
+# 2. Source: Zeek DNP3 Log File (or demo log input)
+[sources.zeek_dnp3_log]
+type = "file"
+include = ["/var/log/zeek/dnp3.log", "/data/dnp3.log"]
+read_from = "beginning"
+
+# 3. Transform: VRL Remap & OOB Context Stitching
+[transforms.oob_bind_transform]
+type = "remap"
+inputs = ["zeek_dnp3_log"]
+source = '''
+# Parse JSON from Zeek DNP3 log line if string
+if is_string(.message) {
+  parsed, err = parse_json(.message)
+  if err == null {
+    . = parsed
+  }
+}
+
+# Extract protocol attributes
+src_ip = to_string!(."id.orig_h")
+dst_ip = to_string!(."id.resp_h")
+dst_port = to_string!(."id.resp_p" ?? 20000)
+function_code = to_string!(.function_code ?? 5)
+
+# Recompute Deterministic Key: sha256(src_ip:dst_ip:dst_port:function_code)
+raw_key = src_ip + ":" + dst_ip + ":" + dst_port + ":" + function_code
+.binding_key = sha_256(raw_key)
+
+# Lookup OOB Trace Context in Enrichment Table
+enrichment_result, err = get_enrichment_table_record("webdis_table", { "binding_key": .binding_key })
+
+if err == null && is_object(enrichment_result) {
+  .oob_match = true
+  .traceparent = enrichment_result.traceparent
+  .status = "SUCCESS_STITCHED"
+} else {
+  .oob_match = false
+  .status = "MISS_NO_CONTEXT"
+}
+
+# Build Fat Span Attributes for SOC & Security AI
+.attributes = {
+  "workflow.name": "DNP3_PHYSICAL_CONTROL_ACTION",
+  "dnp3.function_code": function_code,
+  "dnp3.src_ip": src_ip,
+  "dnp3.dst_ip": dst_ip,
+  "raw_zeek_log": encode_json(.)
+}
+'''
+
+# 4. Sink: Console Output displaying Enriched Spans
+[sinks.out_console]
+type = "console"
+inputs = ["oob_bind_transform"]
+encoding.codec = "json"

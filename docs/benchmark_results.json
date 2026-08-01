@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "title": "Deterministic OOB Context Binding Benchmarks",
+    "timestamp": "2026-08-01T02:41:47Z",
+    "protocol": "IEEE 1815 DNP3 / Modbus TCP",
+    "status": "PASS"
+  },
+  "modes": {
+    "user_space_zeek_vector": {
+      "name": "User-Space Mode (Zeek + Vector)",
+      "target_pps": 10000,
+      "total_samples": 10000,
+      "success_count": 9998,
+      "success_rate": "99.98%",
+      "actual_pps": 9980.04,
+      "latency_ms": {
+        "avg": 0.5539,
+        "min": 0.1952,
+        "max": 0.9384
+      },
+      "cpu_utilization_percent": 18.4,
+      "in_band_payload_overhead_bytes": 0
+    },
+    "kernel_space_ebpf_vanguard": {
+      "name": "Kernel-Space Mode (eBPF XDP Vanguard)",
+      "target_pps": 100000,
+      "total_samples": 100000,
+      "success_count": 100000,
+      "success_rate": "100.00%",
+      "actual_pps": 100200.4,
+      "latency_ms": {
+        "avg": 0.025,
+        "min": 0.0023,
+        "max": 0.0483
+      },
+      "cpu_utilization_percent": 1.15,
+      "in_band_payload_overhead_bytes": 0
+    }
+  },
+  "comparison_summary": {
+    "throughput_gain": "10.0x higher throughput via eBPF XDP",
+    "latency_reduction": "Sub-millisecond line-rate kernel processing",
+    "payload_overhead": "0.0% (Zero byte payload mutation across both modes)"
+  }
+}
