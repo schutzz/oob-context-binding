@@ -8,7 +8,7 @@ services:
       - "6379:6379"
 
   webdis:
-    image: nicolasff/webdis:latest
+    image: nicolas/webdis:0.1.20
     container_name: oob_webdis
     ports:
       - "7379:7379"

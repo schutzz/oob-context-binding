@@ -7,11 +7,13 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
+// ★修正1: ユーザー空間に送るイベント構造体に function_code を追加
 struct event {
     __u32 src_ip;
     __u32 dst_ip;
     __u16 dst_port;
     __u32 packet_len;
+    __u8  function_code; 
 };
 
 struct {
@@ -65,11 +67,14 @@ int xdp_pass(struct xdp_md *ctx) {
 
         // --- L7 Shallow Parsing ---
         __u8 *bytes = payload;
+        __u8 extracted_fc = 0; // ★追加: 抽出したFCを一時保存する変数
 
         // DNP3 (Port 20000): Magic bytes 0x05 0x64
         if (dest_port == 20000 || src_port == 20000) {
-            if (payload + 2 > data_end) return XDP_DROP;
+            // ★修正2: FC(3バイト目)を読み取るため、ペイロード長が最低3バイトあるかチェック
+            if (payload + 13 > data_end) return XDP_DROP; 
             if (bytes[0] == 0x05 && bytes[1] == 0x64) {
+                extracted_fc = bytes[12]; // ★修正3: Pythonのモック仕様に合わせて3バイト目をFCとして抽出
                 goto submit_event; // Valid DNP3
             }
             return XDP_DROP; // Noise on DNP3 port
@@ -77,8 +82,10 @@ int xdp_pass(struct xdp_md *ctx) {
 
         // Modbus TCP (Port 502): Protocol ID is 0x00 0x00
         if (dest_port == 502 || src_port == 502) {
-            if (payload + 4 > data_end) return XDP_DROP;
+            // ★参考修正: Modbus TCPの場合、MBAPヘッダ(7バイト)の次の8バイト目がFC
+            if (payload + 8 > data_end) return XDP_DROP;
             if (bytes[2] == 0x00 && bytes[3] == 0x00) {
+                extracted_fc = bytes[7]; // ModbusのFC抽出
                 goto submit_event; // Valid Modbus
             }
             return XDP_DROP; // Noise on Modbus port
@@ -93,6 +100,7 @@ submit_event:
                 e->dst_ip = ip->daddr;
                 e->dst_port = dest_port;
                 e->packet_len = data_end - data;
+                e->function_code = extracted_fc; // ★修正4: リングバッファにFCをセットしてユーザー空間へ渡す
                 bpf_ringbuf_submit(e, 0);
             }
         }

@@ -1,0 +1,54 @@
+name: OOB Context Binding - eBPF Full CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  benchmark-and-validation:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install benchmark dependencies
+        run: pip install requests redis
+
+      - name: Prepare environment
+        run: |
+          # ベンチマーク結果保存用ディレクトリの確保
+          mkdir -p docs
+
+      - name: Build and start OOB Pipeline (including eBPF)
+        run: |
+          # 権限(特権)・BTFマウント設定済みの完全版 Compose を起動
+          docker compose up -d --build
+          # 各コンポーネントの初期化と Redis/Vector の起動待機
+          sleep 10
+          docker compose ps
+
+      - name: Run Benchmark Test (Target: 0 Overhead, 100% Success)
+        run: |
+          # In-Band Overhead 0 bytes および Success Rate 100% の検証
+          python scripts/run_benchmark.py --samples 500 --pps 500
+          
+      - name: Display Results
+        if: always()
+        run: |
+          if [ -f "docs/benchmark_results.json" ]; then
+            cat docs/benchmark_results.json
+          else
+            echo "Benchmark results not found."
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down

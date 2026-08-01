@@ -4,109 +4,79 @@ services:
   redis:
     image: redis:7.0-alpine
     container_name: oob_redis
-    ports:
-      - "6379:6379"
-    networks:
-      oob_net:
-        ipv4_address: 10.0.1.5
+    network_mode: "host"
 
   webdis:
-    image: nicolasff/webdis:latest
+    image: nicolas/webdis:0.1.20
     container_name: oob_webdis
-    ports:
-      - "7379:7379"
+    environment:
+      - REDIS_HOST=127.0.0.1
+      - REDIS_PORT=6379
+    network_mode: "host"
     depends_on:
       - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    networks:
-      oob_net:
-        ipv4_address: 10.0.1.6
 
-  target_rtu:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.10-slim
-        WORKDIR /app
-        COPY scada_emulator/target_rtu.py .
-        CMD ["python", "target_rtu.py"]
-    container_name: oob_target_rtu
-    environment:
-      - LISTEN_IP=0.0.0.0
-      - LISTEN_PORT=20000
-    networks:
-      oob_net:
-        ipv4_address: 10.0.1.20
-
-  scada_sender:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.10-slim
-        RUN pip install --no-cache-dir requests redis
-        WORKDIR /app
-        COPY scada_emulator/send_dnp3_with_oob_trace.py .
-        CMD ["python", "send_dnp3_with_oob_trace.py"]
-    container_name: oob_scada_sender
-    environment:
-      - WEBDIS_HOST=webdis
-      - WEBDIS_PORT=7379
-      - SRC_IP=10.0.1.10
-      - DST_IP=10.0.1.20
-      - DST_PORT=20000
-      - FUNCTION_CODE=5
-    networks:
-      oob_net:
-        ipv4_address: 10.0.1.10
-    depends_on:
-      - webdis
-      - target_rtu
+  vector:
+    image: timberio/vector:0.34.0-alpine
+    container_name: oob_vector
+    volumes:
+      - ./vector_config:/etc/vector
+    command: ["-c", "/etc/vector/vector.toml"]
+    network_mode: "host"
 
   sidecar:
     build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.10-slim
-        RUN pip install --no-cache-dir requests
-        WORKDIR /app
-        COPY sidecar/sync_redis_to_csv.py .
-        CMD ["python", "sync_redis_to_csv.py"]
+      context: ./sidecar
     container_name: oob_sidecar
     environment:
-      - WEBDIS_HOST=webdis
+      - WEBDIS_HOST=127.0.0.1
       - WEBDIS_PORT=7379
-      - VECTOR_API_URL=http://vector:8686
-      - CSV_PATH=/data/webdis_cache.csv
+      - VECTOR_API_URL=http://127.0.0.1:8686
+      - CSV_PATH=/etc/vector/webdis_cache.csv
       - POLL_INTERVAL=1.0
     volumes:
-      - shared_data:/data
-    networks:
-      oob_net:
-        ipv4_address: 10.0.1.7
+      - ./vector_config:/etc/vector
+    network_mode: "host"
     depends_on:
       - webdis
       - vector
 
-  vector:
-    image: timberio/vector:0.34.1-alpine
-    container_name: oob_vector
-    ports:
-      - "8686:8686"
+  ebpf_vanguard:
+    build:
+      context: ./ebpf_vanguard
+    container_name: oob_ebpf_vanguard
+    privileged: true
+    network_mode: "host"
     volumes:
-      - ./vector_config/vector.toml:/etc/vector/vector.toml:ro
-      - shared_data:/data
-    networks:
-      oob_net:
-        ipv4_address: 10.0.1.8
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /sys/kernel/btf:/sys/kernel/btf:ro
+    command: ["eth0"]
 
-volumes:
-  shared_data:
+  rtu:
+    build:
+      context: ./scada_emulator
+    container_name: oob_rtu
+    command: ["python", "-u", "target_rtu.py"]
+    environment:
+      - LISTEN_IP=0.0.0.0
+      - LISTEN_PORT=20000
+    network_mode: "host"
 
-networks:
-  oob_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.0.1.0/24
+  scada_sender:
+    build:
+      context: ./scada_emulator
+    container_name: oob_scada_sender
+    command: ["python", "-u", "send_dnp3_with_oob_trace.py"]
+    environment:
+      - WEBDIS_HOST=127.0.0.1
+      - WEBDIS_PORT=7379
+      - SRC_IP=127.0.0.1
+      - DST_IP=127.0.0.1
+      - DST_PORT=20000
+      - FUNCTION_CODE=5
+    network_mode: "host"
+    depends_on:
+      - webdis
+      - rtu
+      - ebpf_vanguard

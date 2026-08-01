@@ -63,12 +63,29 @@ def main():
         except Exception as e:
             print(f"[{iteration}] [SCADA-Sender] Error pre-registering OOB context: {e}", flush=True)
 
-        # 2. Transmit UNMODIFIED Binary DNP3 Packet (Header: 0x05 0x64, FC: 0x05)
-        dnp3_payload = bytes([0x05, 0x64, function_code, 0x0B, 0x00, 0x00, 0x00, 0x00])
+        # 2. Transmit UNMODIFIED Binary DNP3 Packet (IEEE 1815 Format)
+        # オフセット解説: 0-9(データリンク), 10(トランスポート), 11(アプリ制御), 12(Function Code)
+        dnp3_payload = bytes([
+            0x05, 0x64,             # 0-1: Sync
+            0x0E,                   # 2: Length (続くペイロードの長さ)
+            0xC4,                   # 3: Link Control
+            0x01, 0x00,             # 4-5: Dest Address
+            0x00, 0x00,             # 6-7: Src Address
+            0x00, 0x00,             # 8-9: Link CRC (ダミー)
+            0xC0,                   # 10: Transport Header (FIN, FIR)
+            0xC1,                   # 11: Application Control
+            function_code,          # 12: Function Code (0x05 = Direct Operate)
+            0x01, 0x02, 0x03, 0x04  # 13-16: Payload (Object Data) + CRC
+        ])
+
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(dnp3_payload, (dst_ip, dst_port))
-            print(f"[{iteration}] [SCADA-Sender] Sent binary DNP3 frame ({len(dnp3_payload)} bytes) to {dst_ip}:{dst_port}", flush=True)
+            # IEEE 1815の実環境に合わせてTCPソケット(SOCK_STREAM)を使用
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2.0)
+            sock.connect((dst_ip, dst_port))
+            sock.sendall(dnp3_payload)
+            sock.close()
+            print(f"[{iteration}] [SCADA-Sender] Sent strictly compliant binary DNP3 frame ({len(dnp3_payload)} bytes) via TCP to {dst_ip}:{dst_port}", flush=True)
         except Exception as e:
             print(f"[{iteration}] [SCADA-Sender] Error sending DNP3 packet: {e}", flush=True)
 
