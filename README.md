@@ -4,9 +4,11 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-green.svg)](https://www.docker.com/)
 [![Vector](https://img.shields.io/badge/Vector-0.34-blueviolet.svg)](https://vector.dev/)
-[![Zenodo](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.xxxxxx-blue.svg)](https://zenodo.org/)
+[![Zenodo](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21731823-blue.svg)](https://doi.org/10.5281/zenodo.21731823)
 
 A production-grade reference implementation of **Deterministic Out-of-Band (OOB) Context Binding** for legacy OT/ICS protocols (e.g., DNP3, Modbus TCP, IEC 61850).
+
+📄 **Whitepaper / Preprint**: [Read on Zenodo](https://zenodo.org/records/21731823) | **DOI**: [`10.5281/zenodo.21731823`](https://doi.org/10.5281/zenodo.21731823)
 
 This mechanism solves the fundamental visibility gap in Industrial Control Systems: **enabling end-to-end W3C Trace Context (OpenTelemetry) correlation across IT/OT boundaries without modifying binary OT network packets or violating protocol specifications.**
 
@@ -114,11 +116,11 @@ If you use this project or architecture in your academic work, please cite our w
 
 ```bibtex
 @misc{oob_context_binding_2027,
-  author       = {schutzz},
+  author       = {Daichi Terayama (schutzz)},
   title        = {Unbreaking the Kill Chain: OOB Deterministic Binding for Legacy OT Protocols},
   year         = 2026,
   publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.xxxxxx},
+  doi          = {10.5281/zenodo.21731823},
   url          = {https://github.com/schutzz/oob-context-binding}
 }
 ```

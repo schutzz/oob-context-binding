@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software or architecture, please cite it as below."
+authors:
+  - family-names: "Terayama"
+    given-names: "Daichi"
+    alias: "schutzz"
+title: "Unbreaking the Kill Chain: Deterministic Out-of-Band (OOB) Context Binding for Legacy OT/ICS Protocols"
+version: 1.0.0
+date-released: 2026-08-01
+url: "https://github.com/schutzz/oob-context-binding"
+doi: 10.5281/zenodo.21731823
