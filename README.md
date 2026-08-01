@@ -113,6 +113,20 @@ See [docs/evaluation.md](docs/evaluation.md) for full benchmarking details.
 
 ---
 
+## 🤖 Automated CI/CD (GitHub Actions)
+
+This repository includes a fully automated CI/CD pipeline using **GitHub Actions** (`.github/workflows/ebpf-full-ci.yml`) to guarantee the reproducibility of the research results.
+
+Anyone can easily reproduce the eBPF Vanguard Mode benchmarks without preparing a complex native Linux environment. **Just fork this repository**, and GitHub Actions will automatically spin up an Ubuntu 22.04 runner and execute the tests on every push!
+
+### What the CI Pipeline Asserts:
+1. **eBPF Compilation**: Compiles the XDP program from scratch using `clang` and a standalone `bpftool`.
+2. **Full Pipeline Boot**: Starts Redis, Vector, Sidecar, and the eBPF module via `docker compose up --build` with all necessary kernel capabilities (`privileged: true`, `/sys/kernel/btf`).
+3. **High-Speed Stress Test**: Fires continuous DNP3 packets to rigorously test the stream processing engine.
+4. **Zero Overhead & 100% Success Guarantee**: The test script automatically asserts that the OOB context stitching succeeded perfectly (`Success Rate: 100%`) and that the DNP3 payload was never modified (`Overhead: 0 bytes`). The CI build is strictly configured to **fail** if these conditions are not met.
+
+---
+
 ## 📜 Research & Citation
 
 If you use this project or architecture in your academic work, please cite our whitepaper/dataset:
