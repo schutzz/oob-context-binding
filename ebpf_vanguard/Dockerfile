@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     llvm \
     libbpf-dev \
     linux-headers-generic \
+    gcc-multilib \
     make \
     zlib1g-dev \
     libelf-dev \
